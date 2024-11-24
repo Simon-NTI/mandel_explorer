@@ -2,20 +2,40 @@
 #include <stdlib.h>
 #include <math.h>
 
-const unsigned long total_header_size = 54;
-const unsigned int bits_per_pixel = 24;
+#define width 2000
+#define height 2000
 
-const unsigned long width = 500;
-const unsigned long height = 500;
+const long double target_x = -1.59575;
+const long double target_y = 0.0;
 
-const unsigned char padding = 4 - (((bits_per_pixel / 8) * width) % 4);
-const unsigned long total_padding = padding * height;
+const long double range = 0.0005;
 
-const unsigned long image_size = (bits_per_pixel / 8) * (width * height) + total_padding;
+#define max_iteration 800
 
-const unsigned long file_size = total_header_size + image_size + total_padding;
 
-unsigned char bitmap[file_size] = {};
+#define total_header_size 54
+#define bits_per_pixel 24
+
+#define padding 4 - (((bits_per_pixel / 8) * width) % 4)
+#define total_padding padding * height
+
+#define image_size (bits_per_pixel / 8) * (width * height) + total_padding
+
+#define file_size total_header_size + image_size + total_padding
+
+// const unsigned char color_palette[10][3] = {
+//     {0, 0, 0},
+//     {50, 50, 50},
+//     {167, 232, 189},
+//     {252, 188, 184},
+//     {239, 167, 167},
+//     {60, 145, 230},
+//     {52, 46, 55},
+//     {162, 215, 41},
+//     {246, 81, 29},
+//     {250, 130, 76}};
+
+unsigned char bitmap[file_size] = {0};
 
 void write_ulong_to_bitmap(long write_pos, unsigned long input)
 {
@@ -28,9 +48,8 @@ void write_ulong_to_bitmap(long write_pos, unsigned long input)
     }
 }
 
-void plot_area(double xmin, double xmax, double ymin, double ymax)
+void plot_area(long double xmin, long double xmax, long double ymin, long double ymax)
 {
-    const unsigned long max_iteration = 1000;
     float greyscale = 255.0f / (float)max_iteration;
 
     for (unsigned long pixel_y = 0; pixel_y < height; pixel_y++)
@@ -41,31 +60,63 @@ void plot_area(double xmin, double xmax, double ymin, double ymax)
             // const double difference = (float)pixel_index / (float)image_size;
             const unsigned long write_pos = total_header_size + pixel_index * 3;
 
-            double x0 = xmin + (xmax - xmin) * ((float)pixel_x / (float)width);
-            double y0 = ymin + (ymax - ymin) * ((float)pixel_y / (float)height);
-            double x = 0;
-            double y = 0;
+            long double x0 = xmin + (xmax - xmin) * ((double)pixel_x / (double)width);
+            long double y0 = ymin + (ymax - ymin) * ((double)pixel_y / (double)height);
+            long double x = 0;
+            long double y = 0;
 
             unsigned long iteration = 0;
             // printf("Plotting pixel %lu at (%f, %f)\n", pixel_index, x0, y0);
 
             while (x * x + y * y <= 2 * 2 && iteration < max_iteration)
             {
-                double xtemp = x * x - y * y + x0;
+                long double xtemp = x * x - y * y + x0;
                 y = 2 * x * y + y0;
                 x = xtemp;
                 iteration++;
             }
 
-            const unsigned char color = 255 - (unsigned char)(iteration * greyscale);
+            // const unsigned char color = 255 - (unsigned char)(iteration * greyscale);
 
             // printf("Finished after %lu iterations with color %u\n", iteration, color);
             // printf("Finished after %lu iterations\n", iteration);
 
             // printf("Writing to byte %lu\n", write_pos);
-            bitmap[write_pos] = color;
-            bitmap[write_pos + 1] = color;
-            bitmap[write_pos + 2] = color;
+
+            unsigned char r = 255.0f * ((float)iteration / (float)max_iteration);
+            if(r > 255)
+            {
+                r = 255;
+            }
+
+            unsigned char g = (unsigned long)(255.0f * (float)iteration / ((float)max_iteration / 10.0f)) % 255;
+            if(g > 255)
+             {
+                g = 255;
+            }
+
+            unsigned char b = (unsigned long)(255.0f * (float)iteration / ((float)max_iteration / 100.0f)) % 255;
+            if(b > 255)
+            {
+                b = 255;
+            }
+
+            unsigned char color = iteration % 10;
+
+            // bitmap[write_pos] = color_palette[color][0];
+            // bitmap[write_pos + 1] = color_palette[color][1];
+            // bitmap[write_pos + 2] = color_palette[color][2];
+
+            bitmap[write_pos] = r;
+            bitmap[write_pos + 1] = g;
+            bitmap[write_pos + 2] = b;
+
+            // printf("Color in memory: %u, %d, %d: Expected color %d, %d, %d: iterations %lu\n", bitmap[write_pos], bitmap[write_pos + 1], bitmap[write_pos + 2], r, g, b, iteration);
+        }
+
+        if(pixel_y % (unsigned long)((float)height / 100.0f) == 0)
+        {
+            printf("%d%%\n", (unsigned long)((float)pixel_y / ((float)height / 100.0f)) + 1);
         }
     }
 }
@@ -173,16 +224,11 @@ int main()
     //     }
     // }
 
-    const double target_x = -0.4995f;
-    const double target_y = 0.52f;
-
-    const double range = 0.0008f;
-
     plot_area(target_x - range / 2, target_x + range / 2, target_y - range / 2, target_y + range / 2);
 
     FILE *f_image = fopen("image.bmp", "wb");
 
-    printf("--- Full Bitmap info ---\n");
+    // printf("--- Full Bitmap info ---\n");
     for (int i = 0; i < file_size; i++)
     {
         fputc(bitmap[i], f_image);
